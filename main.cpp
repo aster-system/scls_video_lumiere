@@ -352,6 +352,47 @@ void audio_test(std::string path) {
 
 //******************
 //
+// Balls
+//
+//******************
+
+void balls_test(std::string path) {
+    // Datas for the video
+    double duration = 360.0;
+    int height = 1920;int width = 1080;
+    // Create the video generator
+    Video_Generator video_generator = Video_Generator(path, duration, width, height);
+
+    // Use a graphic
+    std::vector<std::shared_ptr<pleos::Circle>> circles;
+    pleos::Graphic graphic;graphic.set_background_color(scls::Color(255, 255, 255));
+    graphic.set_draw_base(false);graphic.set_draw_sub_bases(false);
+    for(int i = 0;i<10;i++) {
+        std::shared_ptr<pleos::Circle> circle = graphic.new_circle("circle_" + std::to_string(i), 0, 0, scls::Fraction(i * 5, 10));
+        circle.get()->set_angle_end(250);
+        circle.get()->set_angle_start(290);
+        circle.get()->set_border_radius(8);
+        circle.get()->set_color(scls::Color(0, 0, 0, 0));
+        circles.push_back(circle);
+    }
+
+    // Loop
+    while(video_generator.frame_count() > video_generator.current_frame()){
+        // Create the image
+        video_generator.set_current_image(graphic.to_image(width, height));
+
+        // Update the circles
+        for(int i = 0;i<static_cast<int>(circles.size());i++) {circles.at(i).get()->set_angle_end(circles.at(i).get()->angle_end() + 4);circles.at(i).get()->set_angle_start(circles.at(i).get()->angle_start() + 4);}
+
+        // Finish the frame
+        video_generator.go_to_next_frame();
+    }
+
+    video_generator.close_encoding();
+}
+
+//******************
+//
 // New video
 //
 //******************
@@ -433,7 +474,7 @@ void new_video(std::string path, std::string thumbnail_path) {
 long long current = 0;
 int main(int argc, char **argv) {
     current = scls::time_ns();
-    audio_test("test.mp4");
+    balls_test("test.mp4");
 
     std::cout << "Temps : " << static_cast<double>(scls::time_ns() - current) / 1000000000.0 << std::endl;
 
