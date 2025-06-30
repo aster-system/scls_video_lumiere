@@ -50,9 +50,53 @@ namespace scls {
 
     //******************
     //
+    // Basic audio features
+    //
+    //******************
+
+    // Returns the name of an object
+    std::string codec_name_by_id(AVCodecID codec_id) {return std::string(avcodec_get_name(codec_id));}
+    std::string sample_format_name(enum AVSampleFormat sample_format_id) {return std::string(av_get_sample_fmt_name(sample_format_id));}
+
+    // Returns empty audio datas
+    std::shared_ptr<scls::Bytes_Set> empty_audio_datas(){
+        // Create the datas
+        int datas_size = 1024 * 4;
+        std::shared_ptr<scls::Bytes_Set> to_return = std::make_shared<scls::Bytes_Set>(datas_size);
+        to_return.get()->fill(0);
+        return to_return;
+    }
+
+    // Returns full audio datas from a file
+    std::vector<std::shared_ptr<scls::Bytes_Set>> load_audio_datas_samples(std::string path) {
+        // Loads the video
+        scls::Video_Decoder video_decoder = scls::Video_Decoder(path);
+
+        // Decode the target
+        std::vector<std::shared_ptr<scls::Bytes_Set>> raw_datas;
+        int current_frame = 0;int total_size = 0;
+        while(video_decoder.decode_frame()){
+            if(!video_decoder.current_frame_is_audio()){continue;}
+
+            // Get the datas
+            int datas_size = video_decoder.current_audio_frame_samples();total_size += datas_size;
+            std::shared_ptr<scls::Bytes_Set> current_datas = std::make_shared<scls::Bytes_Set>();
+            current_datas.get()->add_datas(video_decoder.current_audio_frame_stream()->extended_data[0], datas_size);
+            raw_datas.push_back(current_datas);
+        }
+
+        // Return the result
+        return raw_datas;
+    }
+
+    //******************
+    //
     // Video_Decoder class
     //
     //******************
+
+    // Video_Decoder constructor
+    Video_Decoder::Video_Decoder(std::string path){open_decoder(path);a_packet_to_decode = av_packet_alloc();if(a_packet_to_decode == 0) {scls::print("Decoder", "Cannot create a packet.");}}
 
     // Closes the decoder
     void Video_Decoder::close_decoder() {
@@ -73,15 +117,16 @@ namespace scls {
         }
 
         // Reset the context
+        av_packet_free(&a_packet_to_decode);
         avformat_close_input(&a_format_context);
     }
 
     // Decodes a frame
     bool Video_Decoder::decode_frame(){
         // Get the packet
-        int result = av_read_frame(a_format_context, a_video_stream.get()->packet);
+        int result = av_read_frame(a_format_context, a_packet_to_decode);
         if(result < 0){return false;}
-        else {decode_packet(a_video_stream.get()->packet);}//*/
+        else {decode_packet(a_packet_to_decode);av_packet_unref(a_packet_to_decode);}
 
         a_current_frame++;
         return true;
@@ -112,7 +157,7 @@ namespace scls {
         }
 
         // Finish the decoding
-        if(current_stream == a_audio_stream.get()){a_current_frame_is_audio = true;}else{a_current_frame_is_audio = false;}
+        if(current_stream==a_audio_stream.get()){a_current_frame_is_audio = true;}else{a_current_frame_is_audio = false;}
         scls::print("Video decoder", std::string("Decoding ") + std::to_string(a_current_frame + 1));
         return 0;
     }
@@ -374,10 +419,10 @@ namespace scls {
                     current_stream->sws_ctx = sws_getContext(current_stream->context->width, current_stream->context->height,AV_PIX_FMT_YUV420P,current_stream->context->width, current_stream->context->height,current_stream->context->pix_fmt,SCALE_FLAGS, NULL, NULL, NULL);
                     if (!current_stream->sws_ctx) {scls::print("Video", "Could not initialize the conversion context.");return 0;}
                 }
-                fill_yuv_image(current_stream->temp_frame, a_current_frame, current_stream->context->width, current_stream->context->height);
+                fill_yuv_image(current_stream->temp_frame, current_frame_video(), current_stream->context->width, current_stream->context->height);
                 sws_scale(current_stream->sws_ctx, (const uint8_t * const *) current_stream->temp_frame->data,current_stream->temp_frame->linesize, 0, current_stream->context->height, current_stream->frame->data,current_stream->frame->linesize);
             }
-            else {fill_yuv_image(current_stream->frame, a_current_frame, current_stream->context->width, current_stream->context->height);}
+            else {fill_yuv_image(current_stream->frame, current_frame_video(), current_stream->context->width, current_stream->context->height);}
         }
 
         // Return the result
@@ -402,8 +447,9 @@ namespace scls {
         else{nb_samples = current_stream->context->frame_size;}
 
         // Allocate the frame
+        AVSampleFormat final_format = AV_SAMPLE_FMT_FLTP;
         current_stream->frame = alloc_audio_frame(current_stream->context->sample_fmt, &current_stream->context->ch_layout, current_stream->context->sample_rate, nb_samples);
-        current_stream->temp_frame = alloc_audio_frame(AV_SAMPLE_FMT_S16, &current_stream->context->ch_layout, current_stream->context->sample_rate, nb_samples);
+        current_stream->temp_frame = alloc_audio_frame(final_format, &current_stream->context->ch_layout, current_stream->context->sample_rate, nb_samples);
 
         // Copy the parameters in the muxer
         result = avcodec_parameters_from_context(current_stream->stream->codecpar, current_stream->context);
@@ -416,7 +462,7 @@ namespace scls {
         // Set the needed options
         av_opt_set_chlayout(current_stream->swr_ctx, "in_chlayout", &current_stream->context->ch_layout, 0);
         av_opt_set_int(current_stream->swr_ctx, "in_sample_rate", current_stream->context->sample_rate, 0);
-        av_opt_set_sample_fmt(current_stream->swr_ctx, "in_sample_fmt", AV_SAMPLE_FMT_S16, 0);
+        av_opt_set_sample_fmt(current_stream->swr_ctx, "in_sample_fmt", final_format, 0);
         av_opt_set_chlayout(current_stream->swr_ctx, "out_chlayout", &current_stream->context->ch_layout, 0);
         av_opt_set_int(current_stream->swr_ctx, "out_sample_rate", current_stream->context->sample_rate, 0);
         av_opt_set_sample_fmt(current_stream->swr_ctx, "out_sample_fmt", current_stream->context->sample_fmt, 0);
@@ -458,7 +504,7 @@ namespace scls {
     // Write a frame to the file
     int Video_Encoder::write_frame(AVPacket* packet) {
         // Write the frame
-        scls::print("Video", std::string("Encoding : frame ") + std::to_string(a_current_frame + 1) + std::string(" / ") + std::to_string(a_frames_count));
+        scls::print("Video", std::string("Encoding : frame ") + std::to_string(current_frame_video() + 1) + std::string(" / ") + std::to_string(a_frames_count));
         int result = av_interleaved_write_frame(a_format_context, packet);
         if (result < 0) {scls::print("Video", "Could not write the frame.");return 1;}
         return result;
@@ -531,7 +577,7 @@ namespace scls {
 
         // Generate the audio
         double multiplier = 32767;
-        double t = (static_cast<double>(current_frame()) / static_cast<double>(frame_count()));
+        double t = (static_cast<double>(current_frame_video()) / static_cast<double>(frame_count()));
         for (int j = 0; j <frame->nb_samples; j++) {
             int16_t v = multiplier * t;
             //v=(std::sin((static_cast<double>(j)  * 3.1415) / 260.0) * multiplier);
@@ -539,7 +585,7 @@ namespace scls {
         }
 
         // Returns the result
-        frame->pts = current_frame();
+        frame->pts = current_frame_video();
         return frame;
     }
     // Write audio frame
@@ -548,21 +594,18 @@ namespace scls {
         int result = 0;
         int dst_nb_samples;
 
-        if (frame) {
+        // Format the frame if needed
+        result = av_frame_make_writable(a_audio_stream.get()->frame);
+        if(result < 0){exit(1);}
+
+        if(frame != 0 && false) {
             /* convert samples from native format to destination codec format, using the resampler */
             /* compute destination number of samples */
             dst_nb_samples = swr_get_delay(a_audio_stream.get()->swr_ctx, c->sample_rate) + frame->nb_samples;
             av_assert0(dst_nb_samples == frame->nb_samples);
 
-            /* when we pass a frame to the encoder, it may keep a reference to it
-             * internally;
-             * make sure we do not overwrite it here
-             */
-            result = av_frame_make_writable(a_audio_stream.get()->frame);
-            if (result < 0)exit(1);
-
             /* convert to destination format */
-            /*result = swr_convert(a_audio_stream.get()->swr_ctx, a_audio_stream.get()->frame->data, dst_nb_samples, (const uint8_t **)frame->data, frame->nb_samples);
+            result = swr_convert(a_audio_stream.get()->swr_ctx, a_audio_stream.get()->frame->data, dst_nb_samples, (const uint8_t **)frame->data, frame->nb_samples);
             if (result < 0) {
                 fprintf(stderr, "Error while converting\n");
                 exit(1);
@@ -570,14 +613,27 @@ namespace scls {
             //*/
 
             frame = a_audio_stream.get()->frame;
-            frame->pts = av_rescale_q(a_audio_stream.get()->samples_count, (AVRational){1, c->sample_rate}, c->time_base);
             a_audio_stream.get()->samples_count += dst_nb_samples;
         }
+        else{av_frame_ref(a_audio_stream.get()->frame, frame);a_audio_stream.get()->samples_count=frame->nb_samples;}
 
         // Write the frame
+        a_audio_stream.get()->frame->pts = av_rescale_q(a_audio_stream.get()->samples_count * a_audio_stream.get()->current_frame, (AVRational){1, c->sample_rate}, c->time_base);
         return write_frame(a_audio_stream.get());
     }
-    int Video_Encoder::write_audio_frame(AVFrame *frame){av_frame_copy(a_audio_stream.get()->frame, frame);return __write_audio_frame(a_audio_stream.get()->frame);};
-    int Video_Encoder::write_audio_frame(float* datas){memcpy(reinterpret_cast<float*>(a_audio_stream.get()->frame->data[0]), datas, 1024);memcpy(reinterpret_cast<float*>(a_audio_stream.get()->frame->data[1]), datas, 1024);return __write_audio_frame(a_audio_stream.get()->frame);};
+    int Video_Encoder::write_audio_frame(AVFrame *frame){av_frame_copy(a_audio_stream.get()->temp_frame, frame);return __write_audio_frame(a_audio_stream.get()->temp_frame);};
+    int Video_Encoder::write_audio_frame(std::shared_ptr<scls::Bytes_Set> frame){return write_audio_frame(reinterpret_cast<float*>(frame.get()->datas()));}
+    int Video_Encoder::write_audio_frame(float* datas){memcpy(reinterpret_cast<float*>(a_audio_stream.get()->temp_frame->data[0]), datas, 1024);memcpy(reinterpret_cast<float*>(a_audio_stream.get()->temp_frame->data[1]), datas, 1024);return __write_audio_frame(a_audio_stream.get()->temp_frame);};
     int Video_Encoder::write_audio_frame(){return __write_audio_frame(audio_frame(a_audio_stream.get()));}
+    // Write audio frame samples
+    int Video_Encoder::write_audio_frame_samples(std::vector<std::shared_ptr<scls::Bytes_Set>>& datas) {
+        for(int i = 0;i<static_cast<int>(datas.size());i++){
+            std::shared_ptr<scls::Bytes_Set> current_datas = datas.at(i);
+            write_audio_frame(reinterpret_cast<float*>(current_datas.get()->datas()));
+            go_to_next_frame_audio();
+        }
+
+        // Return the result
+        return 1;
+    }
 }

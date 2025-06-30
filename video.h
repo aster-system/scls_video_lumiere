@@ -21,6 +21,20 @@ namespace scls {
 
     //******************
     //
+    // Basic audio features
+    //
+    //******************
+
+    // Returns the name of an object
+    std::string codec_name_by_id(AVCodecID codec_id);
+    std::string sample_format_name(enum AVSampleFormat sample_format_id);
+    // Returns empty audio datas
+    std::shared_ptr<scls::Bytes_Set> empty_audio_datas();
+    // Returns full audio datas from a file
+    std::vector<std::shared_ptr<scls::Bytes_Set>> load_audio_datas_samples(std::string path);
+
+    //******************
+    //
     // Video_Decoder class
     //
     //******************
@@ -43,6 +57,8 @@ namespace scls {
         // (Sometimes) needed temporary
         AVFrame *temp_frame = 0;
 
+        // Current frame to generate the stream
+        int current_frame = 0;
         // Datas for the audio encoding
         double samples_count = 0;double t = 0;double tincr = 0;double tincr2 = 0;
         // Resampling context
@@ -55,7 +71,7 @@ namespace scls {
     public:
 
         // Video_Decoder constructor
-        Video_Decoder(std::string path){open_decoder(path);}
+        Video_Decoder(std::string path);
 
         // Closes the decoder
         void close_decoder();
@@ -70,7 +86,11 @@ namespace scls {
 
         // Getters and setters
         inline int audio_codec_id()const{return a_audio_stream.get()->codec->id;};
+        inline std::string audio_codec_name()const{return codec_name_by_id(a_audio_stream.get()->codec->id);};
         inline int audio_sample_format(){return a_audio_stream.get()->context->sample_fmt;}
+        inline std::string audio_sample_format_name(){return sample_format_name(a_audio_stream.get()->context->sample_fmt);}
+        inline int audio_sample_number(){return a_audio_stream.get()->frame->nb_samples;}
+        inline int audio_sample_rate(){return a_audio_stream.get()->context->sample_rate;}
         inline std::string context_name()const{return a_format_context->iformat->long_name;};
         inline int current_audio_frame_samples(){if(a_audio_stream.get() == 0){return 0;}return a_audio_stream.get()->temp_frame->nb_samples;};
         inline AVPacket* current_audio_packet(){if(a_audio_stream.get() == 0){return 0;}return a_audio_stream.get()->packet;};
@@ -86,6 +106,8 @@ namespace scls {
 
         // Needed format
         AVFormatContext* a_format_context = 0;
+        // Packet to decode
+        AVPacket *a_packet_to_decode = 0;
 
         // Needed streams
         std::shared_ptr<Stream> a_audio_stream;
@@ -137,27 +159,32 @@ namespace scls {
         AVFrame* audio_frame(Stream* current_stream);
         // Write audio frame
         int __write_audio_frame(AVFrame *frame);
+        int write_audio_frame(std::shared_ptr<scls::Bytes_Set> frame);
         int write_audio_frame(AVFrame *frame);
         int write_audio_frame(float *frame);
         int write_audio_frame();
+        // Write audio frame samples
+        int write_audio_frame_samples(std::vector<std::shared_ptr<scls::Bytes_Set>>& datas);
 
         // Getters and setters
         inline int audio_channel_number() {return a_audio_stream.get()->context->ch_layout.nb_channels;};
         inline AVCodecID audio_codec_id() {return a_format_context->oformat->audio_codec;}
+        inline std::string audio_codec_name(){return codec_name_by_id(a_format_context->oformat->audio_codec);};
         inline int audio_sample_format(){return a_audio_stream.get()->context->sample_fmt;}
         inline int audio_sample_number(){return a_audio_stream.get()->frame->nb_samples;}
         inline int audio_sample_rate(){return a_audio_stream.get()->context->sample_rate;}
         inline AVFrame* current_audio_frame_stream() {return a_audio_stream.get()->frame;}
-        inline int current_frame()const{return a_current_frame;};
+        inline int current_frame_video()const{if(a_video_stream.get() == 0){return 0;}return a_video_stream.get()->current_frame;};
         inline AVFrame* current_frame_stream() {return a_video_stream.get()->frame;}
         inline int frame_count()const{return a_frames_count;};
         inline int height() const {return a_height;};
-        inline void go_to_next_frame(){a_current_frame++;};
+        inline void go_to_frame_video(int needed_frame){if(a_video_stream.get() != 0){a_video_stream.get()->current_frame=needed_frame;};};
+        inline void go_to_next_frame_audio(){if(a_audio_stream.get() != 0){a_audio_stream.get()->current_frame++;};};
+        inline void go_to_next_frame_video(){if(a_video_stream.get() != 0){a_video_stream.get()->current_frame++;};};
+        inline void go_to_next_frame(){go_to_next_frame_audio();go_to_next_frame_video();};
         inline AVCodecID video_codec_id() {return a_format_context->oformat->video_codec;}
         inline int width() const {return a_width;};
     private:
-        // Current frame to generate the video
-        int a_current_frame = 0;
         // Currently used frame (0 = scls::__Image_Base, 1 = AVFrame)
         int a_current_frame_type = 0;
         // Current image to encode

@@ -11,7 +11,7 @@ void bubble_video(std::string path, int datas_number, int sort_width, int width,
     double speed = 1;
     std::shared_ptr<pleos::Sort_Datas> sort_datas = pleos::algorithms_sort_creation(datas_number);
     scls::Video_Encoder video = scls::Video_Encoder(path, (static_cast<double>(datas_number) / speed + 1.0) / 60.0, width, height);
-    while(video.frame_count() > video.current_frame()){
+    while(video.frame_count() > video.current_frame_video()){
         std::shared_ptr<scls::__Image_Base> current_image = std::make_shared<scls::__Image_Base>(width, height, scls::Color(255, 255, 255));
         current_image.get()->paste(pleos::algorithms_sort_image(current_image, sort_datas.get(), width / 2 - sort_width / 2, 100, sort_width, sort_width).get(), 0, 0);
         video.write_video_frame(current_image);
@@ -26,11 +26,12 @@ void bubble_video(std::string path, int datas_number, int sort_width, int width,
 
 void fusion_video(std::string path, int datas_number, int sort_width, int width, int height) {
     // Encode the video
-    double speed = 4;
+    double speed = 2;
     std::shared_ptr<pleos::Sort_Datas> sort_datas = pleos::algorithms_sort_creation(datas_number);
     scls::Video_Encoder video = scls::Video_Encoder(path, (static_cast<double>(algorithms_comparaison_fusion_time(sort_datas.get())) / speed + 1.0) / 60.0, width, height);
-    while(video.frame_count() > video.current_frame()){
-        std::shared_ptr<scls::__Image_Base> current_image = std::make_shared<scls::__Image_Base>(width, height, scls::Color(255, 255, 255));
+    std::shared_ptr<scls::__Image_Base> current_image;
+    while(video.frame_count() > video.current_frame_video()){
+        current_image = std::make_shared<scls::__Image_Base>(width, height, scls::Color(255, 255, 255));
         current_image.get()->paste(pleos::algorithms_sort_image(current_image, sort_datas.get(), width / 2 - sort_width / 2, 100, sort_width, sort_width).get(), 0, 0);
         video.write_video_frame(current_image);
         video.go_to_next_frame();
@@ -39,6 +40,8 @@ void fusion_video(std::string path, int datas_number, int sort_width, int width,
         for(int i = 0;i<speed;i++){pleos::algorithms_comparaison_fusion(sort_datas.get());}
     }
 
+    for(int i = 0;i<10;i++){video.write_video_frame(current_image);video.go_to_next_frame();}
+    current_image.get()->save_png("last_frame.png");
     video.close_encoding();
 }
 
@@ -47,7 +50,7 @@ void insertion_video(std::string path, int datas_number, int sort_width, int wid
     double speed = 2;
     std::shared_ptr<pleos::Sort_Datas> sort_datas = pleos::algorithms_sort_creation(datas_number);
     scls::Video_Encoder video = scls::Video_Encoder(path, (static_cast<double>(datas_number) / speed + 1.0) / 60.0, width, height);
-    while(video.frame_count() > video.current_frame()){
+    while(video.frame_count() > video.current_frame_video()){
         std::shared_ptr<scls::__Image_Base> current_image = std::make_shared<scls::__Image_Base>(width, height, scls::Color(255, 255, 255));
         current_image.get()->paste(pleos::algorithms_sort_image(current_image, sort_datas.get(), width / 2 - sort_width / 2, 100, sort_width, sort_width).get(), 0, 0);
         video.write_video_frame(current_image);
@@ -65,9 +68,8 @@ void selection_video(std::string path, int datas_number, int sort_width, int wid
     double speed = 2;
     std::shared_ptr<pleos::Sort_Datas> sort_datas = pleos::algorithms_sort_creation(datas_number);
     scls::Video_Encoder video = scls::Video_Encoder(path, (static_cast<double>(datas_number) / speed + 1.0) / 60.0, width, height);
-    while(video.frame_count() > video.current_frame()){
+    while(video.frame_count() > video.current_frame_video()){
         std::shared_ptr<scls::__Image_Base> current_image = std::make_shared<scls::__Image_Base>(width, height, scls::Color(255, 255, 255));
-        int sort_width = 600;
         current_image.get()->paste(pleos::algorithms_sort_image(current_image, sort_datas.get(), width / 2 - sort_width / 2, 100, sort_width, sort_width).get(), 0, 0);
         video.write_video_frame(current_image);
         video.go_to_next_frame();
