@@ -173,6 +173,7 @@ namespace scls {
         inline int audio_sample_format(){return a_audio_stream.get()->context->sample_fmt;}
         inline int audio_sample_number(){return a_audio_stream.get()->frame->nb_samples;}
         inline int audio_sample_rate(){return a_audio_stream.get()->context->sample_rate;}
+        inline int64_t current_audio_frame_duration() {return a_audio_stream.get()->frame->duration;}
         inline AVFrame* current_audio_frame_stream() {return a_audio_stream.get()->frame;}
         inline int current_frame_video()const{if(a_video_stream.get() == 0){return 0;}return a_video_stream.get()->current_frame;};
         inline AVFrame* current_frame_stream() {return a_video_stream.get()->frame;}

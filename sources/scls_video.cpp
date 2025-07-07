@@ -74,14 +74,15 @@ namespace scls {
 
         // Decode the target
         std::vector<std::shared_ptr<scls::Bytes_Set>> raw_datas;
-        int current_frame = 0;int total_size = 0;
+        int audio_frame = 0;int current_frame = 0;int total_size = 0;
         while(video_decoder.decode_frame()){
             if(!video_decoder.current_frame_is_audio()){continue;}
+            else{audio_frame++;if(audio_frame<=1){continue;}}
 
             // Get the datas
-            int datas_size = video_decoder.current_audio_frame_samples();total_size += datas_size;
+            int datas_size = video_decoder.current_audio_frame_samples() * 4;total_size += datas_size;
             std::shared_ptr<scls::Bytes_Set> current_datas = std::make_shared<scls::Bytes_Set>();
-            current_datas.get()->add_datas(video_decoder.current_audio_frame_stream()->extended_data[0], datas_size);
+            current_datas.get()->add_datas(video_decoder.current_audio_frame_stream()->data[0], datas_size);
             raw_datas.push_back(current_datas);
         }
 
@@ -447,9 +448,9 @@ namespace scls {
         else{nb_samples = current_stream->context->frame_size;}
 
         // Allocate the frame
-        AVSampleFormat final_format = AV_SAMPLE_FMT_FLTP;
+        AVSampleFormat input_format = AV_SAMPLE_FMT_FLTP;
         current_stream->frame = alloc_audio_frame(current_stream->context->sample_fmt, &current_stream->context->ch_layout, current_stream->context->sample_rate, nb_samples);
-        current_stream->temp_frame = alloc_audio_frame(final_format, &current_stream->context->ch_layout, current_stream->context->sample_rate, nb_samples);
+        current_stream->temp_frame = alloc_audio_frame(input_format, &current_stream->context->ch_layout, current_stream->context->sample_rate, nb_samples);
 
         // Copy the parameters in the muxer
         result = avcodec_parameters_from_context(current_stream->stream->codecpar, current_stream->context);
@@ -462,7 +463,7 @@ namespace scls {
         // Set the needed options
         av_opt_set_chlayout(current_stream->swr_ctx, "in_chlayout", &current_stream->context->ch_layout, 0);
         av_opt_set_int(current_stream->swr_ctx, "in_sample_rate", current_stream->context->sample_rate, 0);
-        av_opt_set_sample_fmt(current_stream->swr_ctx, "in_sample_fmt", final_format, 0);
+        av_opt_set_sample_fmt(current_stream->swr_ctx, "in_sample_fmt", input_format, 0);
         av_opt_set_chlayout(current_stream->swr_ctx, "out_chlayout", &current_stream->context->ch_layout, 0);
         av_opt_set_int(current_stream->swr_ctx, "out_sample_rate", current_stream->context->sample_rate, 0);
         av_opt_set_sample_fmt(current_stream->swr_ctx, "out_sample_fmt", current_stream->context->sample_fmt, 0);
@@ -592,28 +593,23 @@ namespace scls {
     int Video_Encoder::__write_audio_frame(AVFrame *frame) {
         AVCodecContext *c = a_audio_stream.get()->context;
         int result = 0;
-        int dst_nb_samples;
 
         // Format the frame if needed
         result = av_frame_make_writable(a_audio_stream.get()->frame);
         if(result < 0){exit(1);}
 
-        if(frame != 0 && false) {
+        if(frame != 0) {
             /* convert samples from native format to destination codec format, using the resampler */
             /* compute destination number of samples */
-            dst_nb_samples = swr_get_delay(a_audio_stream.get()->swr_ctx, c->sample_rate) + frame->nb_samples;
+            int dst_nb_samples = swr_get_delay(a_audio_stream.get()->swr_ctx, c->sample_rate) + frame->nb_samples;
             av_assert0(dst_nb_samples == frame->nb_samples);
 
             /* convert to destination format */
             result = swr_convert(a_audio_stream.get()->swr_ctx, a_audio_stream.get()->frame->data, dst_nb_samples, (const uint8_t **)frame->data, frame->nb_samples);
-            if (result < 0) {
-                fprintf(stderr, "Error while converting\n");
-                exit(1);
-            }
-            //*/
+            if (result < 0) {fprintf(stderr, "Error while converting\n");return 1;}
 
-            frame = a_audio_stream.get()->frame;
-            a_audio_stream.get()->samples_count += dst_nb_samples;
+            // Finish the conversion
+            a_audio_stream.get()->samples_count = frame->nb_samples;
         }
         else{av_frame_ref(a_audio_stream.get()->frame, frame);a_audio_stream.get()->samples_count=frame->nb_samples;}
 
