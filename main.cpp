@@ -1,8 +1,12 @@
-#include "video.h"
 #include "../PLEOS/pleos_libs/pleos_it.h"
 #include "../PLEOS/pleos_libs/pleos_mathematics.h"
 
+#include "video.h"
+#include "headers/scls_video_shotcut.h"
+
 SCLS_INIT
+
+/*
 
 //******************
 //
@@ -402,7 +406,7 @@ void new_video(std::string path, std::string thumbnail_path) {
     double duration = 600.0;
     int height = 1920;int width = 1080;
     // Create the video generator
-    Video_Generator video_generator = Video_Generator(path, duration, width, height);
+    scls::Video_Generator video_generator = scls::Video_Generator(path, duration, width, height);
 
     // Needed image
     std::shared_ptr<scls::Image> aster_system_logo_shared_ptr = scls::aster_system_logo(300);scls::Image* aster_system_logo = aster_system_logo_shared_ptr.get();
@@ -465,18 +469,12 @@ void new_video(std::string path, std::string thumbnail_path) {
     video_generator.close_encoding();
 }
 
+//*/
+
 //******************
 //
 // Main
 //
 //******************
 
-long long current = 0;
-int main(int argc, char **argv) {
-    current = scls::time_ns();
-    balls_test("test.mp4");
-
-    std::cout << "Temps : " << static_cast<double>(scls::time_ns() - current) / 1000000000.0 << std::endl;
-
-    return 0;
-}
+int main(int argc, char **argv) {scls::shotcut_auto_cut(std::string("E:/Youtube/Fichier shotcut/conductivite thermique/conductivite thermique.mlt"), std::string("J:/Youtube/Capture/conductivite_thermique.mkv"));return 0;}
