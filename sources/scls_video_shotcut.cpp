@@ -131,8 +131,6 @@ namespace scls {
             if(current_frame > 1000 && total_chain_content == std::string()) {scls::print("SCLS Video", "Error");error_occured=true;break;}
         }
 
-        scls::write_in_file("chain.txt", total_chain);
-        scls::write_in_file("chain_long.txt", total_chain_content);
         scls::write_in_file(project_path, mlt_first_part + total_chain_content + mlt_second_part + total_chain + mlt_third_part);
 
         if(error_occured){shotcut_auto_cut(project_path, video_path);}

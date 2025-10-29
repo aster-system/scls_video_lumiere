@@ -90,6 +90,16 @@ namespace scls {
         return raw_datas;
     }
 
+    // Add datas to an audio sample
+    void add_audio_datas(std::shared_ptr<scls::Bytes_Set> basic_datas, std::shared_ptr<scls::Bytes_Set> datas_to_add, int divisor) {
+        // Handle the datas
+        for(int i = 0;i<static_cast<int>(basic_datas.get()->datas_size()) / 4;i++) {
+            float base = basic_datas.get()->extract_float(i * 4);
+            base += datas_to_add.get()->extract_float(i * 4) / static_cast<float>(divisor);
+            basic_datas.get()->put_float(base, i * 4);
+        }
+    }
+
     //******************
     //
     // Video_Decoder class

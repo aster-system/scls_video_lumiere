@@ -33,6 +33,9 @@ namespace scls {
     // Returns full audio datas from a file
     std::vector<std::shared_ptr<scls::Bytes_Set>> load_audio_datas_samples(std::string path);
 
+    // Add datas to an audio sample
+    void add_audio_datas(std::shared_ptr<scls::Bytes_Set> basic_datas, std::shared_ptr<scls::Bytes_Set> datas_to_add, int divisor);
+
     //******************
     //
     // Video_Decoder class
