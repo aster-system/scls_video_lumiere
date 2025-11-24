@@ -127,6 +127,15 @@ namespace scls {
         // Class representating a video encoder
     public:
 
+        // Struct containing an audio track
+        struct Audio_Track{
+            // Audio_Track constructor
+            Audio_Track(std::vector<std::shared_ptr<scls::Bytes_Set>> needed_datas);
+
+            int current_frame = 0;
+            std::vector<std::shared_ptr<scls::Bytes_Set>> datas;
+        };
+
         // Video_Encoder constructor
         Video_Encoder(std::string path, double duration, int width, int height);
 
@@ -152,6 +161,7 @@ namespace scls {
 
         // Write a video frame
         int write_video_frame(AVFrame* image);
+        int write_video_frame(scls::Image image);
         int write_video_frame(std::shared_ptr<scls::__Image_Base> image);
         int write_video_frame();
 
@@ -160,6 +170,8 @@ namespace scls {
 
         // Returns an audio
         AVFrame* audio_frame(Stream* current_stream);
+        // Returns the current audio frame from tracks
+        std::shared_ptr<scls::Bytes_Set> audio_frame_tracks();
         // Write audio frame
         int __write_audio_frame(AVFrame *frame);
         int write_audio_frame(std::shared_ptr<scls::Bytes_Set> frame);
@@ -186,23 +198,28 @@ namespace scls {
         inline void go_to_next_frame_audio(){if(a_audio_stream.get() != 0){a_audio_stream.get()->current_frame++;};};
         inline void go_to_next_frame_video(){if(a_video_stream.get() != 0){a_video_stream.get()->current_frame++;};};
         inline void go_to_next_frame(){go_to_next_frame_audio();go_to_next_frame_video();};
+        inline std::vector<Audio_Track>& tracks(){return a_tracks;};
         inline AVCodecID video_codec_id() {return a_format_context->oformat->video_codec;}
         inline int width() const {return a_width;};
     private:
-        // Currently used frame (0 = scls::__Image_Base, 1 = AVFrame)
+        // Currently used frame (0 = __Image_Base, 1 = AVFrame)
         int a_current_frame_type = 0;
         // Current image to encode
-        std::shared_ptr<scls::__Image_Base> a_current_image;
+        std::shared_ptr<__Image_Base> a_current_image;
+        // Height of the video
+        int a_height = 0;
+        // Width of the video
+        int a_width = 0;
+
+        // Current audio track
+        std::vector<Audio_Track> a_tracks;
+
         // Duration of the video in seconds
         double a_duration = 0;
         // Number of frames in the video
         int a_frames_count = 125;
         // Frame rate of the video
         int a_frame_rate = 60;
-        // Height of the video
-        int a_height = 0;
-        // Width of the video
-        int a_width = 0;
 
         // Needed streams
         std::shared_ptr<Stream> a_audio_stream;
@@ -216,6 +233,7 @@ namespace scls {
         // Basic video codec
         const AVCodec* a_video_codec;
     };
+    typedef Video_Encoder::Audio_Track Audio_Track;
 
 }
 #endif // SCLS_VIDEO

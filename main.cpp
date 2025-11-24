@@ -12,4 +12,4 @@ SCLS_INIT
 //
 //******************
 
-int main(int argc, char **argv) {scls::shotcut_auto_cut(std::string("E:/Youtube/Fichier shotcut/philosophie mathematiques/philosophie mathematiques.mlt"), std::string("J:/Youtube/Capture/philosophie_mathematiques.mp4"));return 0;}
+int main(int argc, char **argv) {scls::shotcut_auto_cut(std::string("E:/Youtube/Fichier shotcut/crise fondements/crise fondements.mlt"), std::string("J:/Youtube/Capture/crise_fondements.mp4"));return 0;}

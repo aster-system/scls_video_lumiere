@@ -63,7 +63,7 @@ namespace scls {
         // Create the datas
         int datas_size = 1024 * 4;
         std::shared_ptr<scls::Bytes_Set> to_return = std::make_shared<scls::Bytes_Set>(datas_size);
-        to_return.get()->fill(0);
+        for(int i = 0;i<1024;i++){((float*)to_return.get()->datas())[i]=0;}
         return to_return;
     }
 
@@ -74,7 +74,7 @@ namespace scls {
 
         // Decode the target
         std::vector<std::shared_ptr<scls::Bytes_Set>> raw_datas;
-        int audio_frame = 0;int current_frame = 0;int total_size = 0;
+        int audio_frame = 0;int total_size = 0;
         while(video_decoder.decode_frame()){
             if(!video_decoder.current_frame_is_audio()){continue;}
             else{audio_frame++;if(audio_frame<=1){continue;}}
@@ -94,9 +94,7 @@ namespace scls {
     void add_audio_datas(std::shared_ptr<scls::Bytes_Set> basic_datas, std::shared_ptr<scls::Bytes_Set> datas_to_add, int divisor) {
         // Handle the datas
         for(int i = 0;i<static_cast<int>(basic_datas.get()->datas_size()) / 4;i++) {
-            float base = basic_datas.get()->extract_float(i * 4);
-            base += datas_to_add.get()->extract_float(i * 4) / static_cast<float>(divisor);
-            basic_datas.get()->put_float(base, i * 4);
+            ((float*)basic_datas.get()->datas())[i] += ((float*)datas_to_add.get()->datas())[i] / static_cast<float>(divisor);
         }
     }
 
@@ -219,24 +217,32 @@ namespace scls {
     }
     int Video_Decoder::open_decoder_audio() {
         // Creates the audio stream
-        int result = 0;
+        char debug_code = 0;int result = 0;
         a_audio_stream = std::make_shared<Stream>();
 
         // Find the good stream in the file
+        if(debug_code > 0){print("SCLS Video", "Opening the audio of the file...");}
         result = av_find_best_stream(a_format_context, AVMEDIA_TYPE_AUDIO, -1, -1, &a_audio_stream.get()->codec, 0);
         if (result < 0) {scls::print("Video decoder", "Cannot find a audio stream in the input file.");return result;}
+        if(debug_code > 0){print("SCLS Video", "Stream founded for this file.");}
         a_audio_stream.get()->stream = a_format_context->streams[result];
         a_audio_stream.get()->stream_index = result;
 
         // Create the decoding context
+        if(debug_code > 0){print("SCLS Video", "Allocating a context to the video...");}
         a_audio_stream.get()->context = avcodec_alloc_context3(a_audio_stream.get()->codec);
         if (a_audio_stream.get()->context == 0){return AVERROR(ENOMEM);}
         avcodec_parameters_to_context(a_audio_stream.get()->context, a_audio_stream.get()->stream->codecpar);
+        if(debug_code > 0){print("SCLS Video", std::string("Context allocated for the video : bitrate of ") + std::to_string(a_audio_stream.get()->context->bit_rate) + std::string(", sample rate of ") + std::to_string(a_audio_stream.get()->context->sample_rate));}
         // Init the parser
+        if(debug_code > 0){print("SCLS Video", "Allocating a parser to the video...");}
         a_audio_stream.get()->parser = av_parser_init(a_audio_stream.get()->codec->id);
+        if(debug_code > 0){print("SCLS Video", "Parser allocated allocated for the video.");}
         // Init the decoder
+        if(debug_code > 0){print("SCLS Video", "Allocating a parser to the video...");}
         result = avcodec_open2(a_audio_stream.get()->context, a_audio_stream.get()->codec, NULL);
         if (result < 0) {scls::print("Video decoder", "Cannot open the audio decoder.");return result;}
+        if(debug_code > 0){print("SCLS Video", std::string("Codec allocated allocated for the video : ") + codec_name_by_id(a_audio_stream.get()->codec->id));}
 
         // Create the frame
         a_audio_stream.get()->frame = av_frame_alloc();
@@ -246,9 +252,15 @@ namespace scls {
         a_audio_stream.get()->packet = av_packet_alloc();
         if (a_audio_stream.get()->packet == 0) {scls::print("Video decoder", "Cannot create a packet.");return 1;}//*/
 
+        if(debug_code > 0){print("SCLS Video", std::string("Current context name : ") + context_name());}
+        if(debug_code > 0){print("SCLS Video", std::string("Current audio sample format name : ") + audio_sample_format_name());}
+
         // Returns the result
         return result;
     }
+
+    // Audio_Track constructor
+    Video_Encoder::Audio_Track::Audio_Track(std::vector<std::shared_ptr<Bytes_Set>> needed_datas):datas(needed_datas){};
 
     // Video_Encoder constructor
     Video_Encoder::Video_Encoder(std::string path, double duration, int width, int height):a_duration(duration){
@@ -345,7 +357,7 @@ namespace scls {
     int Video_Encoder::create_stream(std::shared_ptr<Stream>& current_stream_shared_ptr, const AVCodec **codec, enum AVCodecID codec_id){
         current_stream_shared_ptr = std::make_shared<Stream>();
         Stream* current_stream = current_stream_shared_ptr.get();
-        int needed_bit_rate = 179000;int needed_sample_rate = 48000;
+        int needed_bit_rate = 128000;int needed_sample_rate = 48000;
 
         // Find the good encoder
         *codec = avcodec_find_encoder(codec_id);
@@ -545,6 +557,7 @@ namespace scls {
 
     // Write a video frame
     int Video_Encoder::write_video_frame(AVFrame* image){a_current_frame_type=1;av_frame_make_writable(a_video_stream.get()->frame);av_frame_copy(a_video_stream.get()->frame, image);return write_frame(a_video_stream.get());};
+    int Video_Encoder::write_video_frame(scls::Image image){return write_video_frame(image.image_shared_ptr());}
     int Video_Encoder::write_video_frame(std::shared_ptr<scls::__Image_Base> image){a_current_frame_type=0;a_current_image = image;return write_frame(a_video_stream.get());};
     int Video_Encoder::write_video_frame(){return write_video_frame(a_current_image);};
 
@@ -599,6 +612,17 @@ namespace scls {
         frame->pts = current_frame_video();
         return frame;
     }
+    // Returns the current audio frame from tracks
+    std::shared_ptr<scls::Bytes_Set> Video_Encoder::audio_frame_tracks() {
+        std::shared_ptr<scls::Bytes_Set> current_data = scls::empty_audio_datas();
+        int depart_size = a_tracks.size();
+        for(int i = 0;i<static_cast<int>(a_tracks.size());i++){
+            add_audio_datas(current_data, a_tracks.at(i).datas.at(a_tracks.at(i).current_frame), depart_size);
+            a_tracks[i].current_frame++;
+            if(a_tracks.at(i).current_frame >= a_tracks.at(i).datas.size()){a_tracks.erase(a_tracks.begin() + i);i--;}
+        }
+        return current_data;
+    }
     // Write audio frame
     int Video_Encoder::__write_audio_frame(AVFrame *frame) {
         AVCodecContext *c = a_audio_stream.get()->context;
@@ -629,7 +653,7 @@ namespace scls {
     }
     int Video_Encoder::write_audio_frame(AVFrame *frame){av_frame_copy(a_audio_stream.get()->temp_frame, frame);return __write_audio_frame(a_audio_stream.get()->temp_frame);};
     int Video_Encoder::write_audio_frame(std::shared_ptr<scls::Bytes_Set> frame){return write_audio_frame(reinterpret_cast<float*>(frame.get()->datas()));}
-    int Video_Encoder::write_audio_frame(float* datas){memcpy(reinterpret_cast<float*>(a_audio_stream.get()->temp_frame->data[0]), datas, 1024);memcpy(reinterpret_cast<float*>(a_audio_stream.get()->temp_frame->data[1]), datas, 1024);return __write_audio_frame(a_audio_stream.get()->temp_frame);};
+    int Video_Encoder::write_audio_frame(float* datas){int memory_size = 4096;memcpy(reinterpret_cast<float*>(a_audio_stream.get()->temp_frame->data[0]), datas, memory_size);memcpy(reinterpret_cast<float*>(a_audio_stream.get()->temp_frame->data[1]), datas, memory_size);return __write_audio_frame(a_audio_stream.get()->temp_frame);};
     int Video_Encoder::write_audio_frame(){return __write_audio_frame(audio_frame(a_audio_stream.get()));}
     // Write audio frame samples
     int Video_Encoder::write_audio_frame_samples(std::vector<std::shared_ptr<scls::Bytes_Set>>& datas) {
